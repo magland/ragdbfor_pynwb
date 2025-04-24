@@ -1,0 +1,3 @@
+[submodule "submodules/pynwb"]
+	path = submodules/pynwb
+	url = https://github.com/NeurodataWithoutBorders/pynwb
