@@ -52,7 +52,7 @@ def create_summary(file_path: str) -> tuple[int, int]:
 
     return prompt_tokens, completion_tokens
 
-def main():
+def main(mode: str):
     # Track total token usage
     total_prompt_tokens = 0
     total_completion_tokens = 0
@@ -60,7 +60,12 @@ def main():
     files_skipped = 0
 
     # Walk through the docs directory
-    docs_gallery_path = 'submodules/pynwb/docs/gallery'
+    if mode == 'pynwb':
+        docs_gallery_path = 'submodules/pynwb/docs/gallery'
+    elif mode == 'neuroconv':
+        docs_gallery_path = 'submodules/neuroconv/docs/conversion_examples_gallery'
+    else:
+        raise ValueError("Invalid mode. Use 'pynwb' or 'neuroconv'.")
     for root, _, files in os.walk(docs_gallery_path):
         for file in files:
             if file.endswith(('.rst', '.py')):
@@ -68,7 +73,12 @@ def main():
 
                 # Check if summary already exists
                 rel_path = os.path.relpath(file_path, docs_gallery_path)
-                summary_path = os.path.join('summaries/pynwb/docs', rel_path + '.summary.md')
+                if mode == 'pynwb':
+                    summary_path = os.path.join('summaries/pynwb/docs', rel_path + '.summary.md')
+                elif mode == 'neuroconv':
+                    summary_path = os.path.join('summaries/neuroconv/docs', rel_path + '.summary.md')
+                else:
+                    raise ValueError("Invalid mode. Use 'pynwb' or 'neuroconv'.")
 
                 if os.path.exists(summary_path):
                     print(f"Skipping {file_path} - summary already exists")
@@ -92,4 +102,5 @@ def main():
     print(f"Total tokens used - Prompt: {total_prompt_tokens}, Completion: {total_completion_tokens}")
 
 if __name__ == "__main__":
-    main()
+    main('pynwb')
+    main('neuroconv')
