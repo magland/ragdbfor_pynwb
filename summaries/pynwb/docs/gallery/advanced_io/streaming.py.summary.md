@@ -1,5 +1,9 @@
-To stream NWB files from remote stores like the DANDI Archive, you first need the file's S3 URL. This can be obtained using the `dandi` package and the `DandiAPIClient`.
+# Streaming NWB Files
 
+## Overview
+This document explains how to stream data from remote NWB files, which is useful for reading parts of large NWB files without downloading them entirely. Three methods are presented:
+
+## Getting File Location on DANDI
 ```python
 from dandi.dandiapi import DandiAPIClient
 
@@ -10,31 +14,34 @@ with DandiAPIClient() as client:
     s3_url = asset.get_content_url(follow_redirects=1, strip_query=True)
 ```
 
-Once you have the S3 URL, you can use `remfile`, `fsspec`, or the ROS3 driver in `h5py` to read the NWB file.
-
-**Using `remfile`:**
+## Method 1: Using remfile
+This is a simple, fast library optimized for streaming HDF5 files from S3.
 
 ```python
 import h5py
 from pynwb import NWBHDF5IO
 import remfile
 
-cache_dirname = '/tmp/remfile_cache' # optional
-disk_cache = remfile.DiskCache(cache_dirname) # optional
-rem_file = remfile.File(s3_url, disk_cache=disk_cache) # optional
+# Create optional disk cache
+cache_dirname = '/tmp/remfile_cache'
+disk_cache = remfile.DiskCache(cache_dirname)
+
+# Open file
+rem_file = remfile.File(s3_url, disk_cache=disk_cache)
 h5py_file = h5py.File(rem_file, "r")
 io = NWBHDF5IO(file=h5py_file)
 nwbfile = io.read()
 
+# Access data
 streamed_data = nwbfile.acquisition["lick_times"].time_series["lick_left_times"].data[:]
 
+# Close file
 io.close()
 h5py_file.close()
 rem_file.close()
 ```
 
-Context manager example:
-
+Using context managers:
 ```python
 rem_file = remfile.File(s3_url, disk_cache=disk_cache)
 with h5py.File(rem_file, "r") as h5py_file:
@@ -43,7 +50,8 @@ with h5py.File(rem_file, "r") as h5py_file:
         streamed_data = nwbfile.acquisition["lick_times"].time_series["lick_left_times"].data[:]
 ```
 
-**Using `fsspec`:**
+## Method 2: Using fsspec
+A flexible library creating virtual filesystems for various remote stores.
 
 ```python
 import fsspec
@@ -51,45 +59,55 @@ import pynwb
 import h5py
 from fsspec.implementations.cached import CachingFileSystem
 
+# Create filesystem
 fs = fsspec.filesystem("http")
-fs = CachingFileSystem(fs=fs, cache_storage="nwb-cache") # optional
 
+# Optional cache
+fs = CachingFileSystem(
+    fs=fs,
+    cache_storage="nwb-cache",
+)
+
+# Open file
 f = fs.open(s3_url, "rb")
 file = h5py.File(f)
 io = pynwb.NWBHDF5IO(file=file)
 nwbfile = io.read()
 
+# Access data
 streamed_data = nwbfile.acquisition['lick_times'].time_series['lick_left_times'].data[:]
 
+# Close file
 io.close()
 file.close()
 f.close()
 ```
 
-Context manager example:
-
+Using context managers:
 ```python
 with fs.open(s3_url, "rb") as f:
     with h5py.File(f) as file:
         with pynwb.NWBHDF5IO(file=file) as io:
             nwbfile = io.read()
-            print(nwbfile.acquisition['lick_times'].time_series['lick_left_times'].data[:])
+            data = nwbfile.acquisition['lick_times'].time_series['lick_left_times'].data[:]
 ```
 
-**Using ROS3:**
+## Method 3: Using ROS3 (Read-Only S3)
+Direct HDF5 driver for S3 access. Requires HDF5 built with ROS3 support.
 
 ```python
 from pynwb import NWBHDF5IO
 
+# With context manager
 with NWBHDF5IO(s3_url, mode='r', driver='ros3') as io:
     nwbfile = io.read()
     streamed_data = nwbfile.acquisition['lick_times'].time_series['lick_left_times'].data[:]
 
-# open and close manually
+# Manually
 io = NWBHDF5IO(s3_url, mode='r', driver='ros3')
 nwbfile = io.read()
 streamed_data = nwbfile.acquisition['lick_times'].time_series['lick_left_times'].data[:]
 io.close()
 ```
 
-Note that pre-built h5py packages on PyPI do not include S3 support. Conda installation is recommended. `conda install h5py`.
+Note: For ROS3, install h5py with conda: `conda install h5py` as PyPI versions don't include S3 support.

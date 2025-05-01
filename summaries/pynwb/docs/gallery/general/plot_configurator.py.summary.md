@@ -1,66 +1,84 @@
-This document explains how to configure term validations in PyNWB using configuration files.
+# PyNWB Term Validation Configuration Guide
 
-**Configuration File Structure:**
+## Overview
+PyNWB allows users to validate field values against predefined sets of allowed terms using configuration files. This ensures data consistency and adherence to standards.
 
-*   Uses YAML syntax.
-*   Nested dictionaries define namespaces, data types, and fields with associated `TermSet`s.
-*   Namespaces (e.g., core namespace, extension namespaces) and their versions must be defined.
-*   Each data type has a list of fields to be validated.
-*   Each field is linked to a `TermSet`, which can be unique or shared.
+## Core Concepts
+- **Term Validation**: Restricting field values to a set of allowed terms
+- **Configuration File**: YAML file that defines validation rules
+- **Term Sets**: Collections of allowed values for specific fields
 
-**Usage:**
+## Configuration Process
 
-1.  **Load the configuration file:** Use `pynwb.load_type_config(config_path='path/to/your/config.yaml')`.
-2.  After loading, PyNWB will automatically wrap the fields specified in the configuration file with a `TermSetWrapper`.
-3.  Example:
-    ```python
-    from pynwb import NWBFile, get_loaded_type_config, load_type_config, unload_type_config
-    from pynwb.file import Subject
-    from datetime import datetime
-    from dateutil import tz
-    from uuid import uuid4
-    import os
+### 1. Creating a Configuration File
+- Use YAML syntax to define validation rules
+- Specify namespaces, data types, and fields to validate
+- Example: https://github.com/NeurodataWithoutBorders/pynwb/tree/dev/src/pynwb/config/nwb_config.yaml
 
-    # Load the configuration
-    try:
-        dir_path = os.path.dirname(os.path.abspath(__file__))  # when running as a .py
-    except NameError:
-        dir_path = os.path.dirname(os.path.abspath("__file__"))  # when running as a script or notebook
-    yaml_file = os.path.join(dir_path, 'nwb_gallery_config.yaml')
-    load_type_config(config_path=yaml_file)
+Structure:
+```yaml
+namespaces:
+  namespace_name:
+    version: "version_number"
+    data_types:
+      - type_name:
+          fields:
+            - field_name: term_set_definition
+```
 
-    session_start_time = datetime(2018, 4, 25, hour=2, minute=30, second=3, tzinfo=tz.gettz("US/Pacific"))
+### 2. Loading the Configuration
+```python
+from pynwb import load_type_config
+load_type_config(config_path='path/to/config.yaml')
+```
 
-    # Create an NWBFile object (example assumes 'experimenter' is in the config)
-    nwbfile = NWBFile(
-        session_description="Mouse exploring an open field",  # required
-        identifier=str(uuid4()),  # required
-        session_start_time=session_start_time,  # required
-        session_id="session_1234",  # optional
-        experimenter=[
-            "Bilbo Baggins",
-        ],  # optional
-        lab="Bag End Laboratory",  # optional
-        institution="University of My Institution",  # optional
-        experiment_description="I went on an adventure to reclaim vast treasures.",  # optional
-        related_publications="DOI:10.1016/j.neuron.2016.12.011",  # optional
-    )
+### 3. Using the Configuration
+Once loaded, validation happens automatically when creating NWB objects:
 
-    subject = Subject(
-        subject_id="001",
-        age="P90D",
-        description="mouse 5",
-        species="Mus musculus",
-        sex="M",
-    )
+```python
+from pynwb import NWBFile
+from pynwb.file import Subject
+from datetime import datetime
+from dateutil import tz
 
-    nwbfile.subject = subject
-    ```
-4.  **View the active configuration:** Use `pynwb.get_loaded_type_config()` to retrieve the dictionary representing the current configuration.
-5.  **Unload the configuration:** Use `pynwb.unload_type_config()` to stop automatic validation.
+# Create NWB file with fields that will be validated
+nwbfile = NWBFile(
+    session_description="Mouse exploring an open field",
+    identifier="unique_id",
+    session_start_time=datetime(2018, 4, 25, 2, 30, 3, tzinfo=tz.gettz("US/Pacific")),
+    experimenter=["Bilbo Baggins"]  # This will be validated if configured
+)
 
-**Important Notes:**
+# Create subject with fields that will be validated
+subject = Subject(
+    subject_id="001",
+    age="P90D",
+    species="Mus musculus",  # This will be validated if configured
+    sex="M"
+)
 
-*   When the configuration is loaded, create instances as usual; the wrapping and validation occur automatically.
-*   The configuration determines which fields are validated against which sets of allowed terms.
-*   The example uses `experimenter` in `NWBFile` and `species` in `Subject` as examples of fields configured for validation.
+nwbfile.subject = subject
+```
+
+### 4. Managing Configurations
+Check current configuration:
+```python
+from pynwb import get_loaded_type_config
+config = get_loaded_type_config()
+```
+
+Unload configuration:
+```python
+from pynwb import unload_type_config
+unload_type_config()
+```
+
+## Alternative Approach
+For greater control, use `TermSetWrapper` directly on individual datasets/attributes.
+See the [HDMF TermSet tutorial](https://hdmf.readthedocs.io/en/stable/tutorials/plot_term_set.html) for details.
+
+## Dependencies
+The functionality requires `linkml-runtime`. Install with:
+```
+pip install linkml-runtime
+```

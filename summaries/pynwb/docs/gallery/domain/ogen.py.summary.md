@@ -1,13 +1,14 @@
-Optogenetics data can be written to an NWB file using the `pynwb.ogen` module, which includes `OptogeneticStimulusSite` for metadata about the stimulus site and `OptogeneticSeries` for the laser power applied over time.
+# Optogenetics in PyNWB
 
-First, create an `NWBFile` object:
+## Overview
+This tutorial demonstrates how to write optogenetics data using PyNWB.
+
+## Creating an NWBFile
 
 ```python
 from datetime import datetime
 from uuid import uuid4
-
 from dateutil.tz import tzlocal
-
 from pynwb import NWBFile
 
 nwbfile = NWBFile(
@@ -22,7 +23,13 @@ nwbfile = NWBFile(
 )
 ```
 
-Create a `Device` object and link it to the `NWBFile`:
+## Adding Optogenetic Data
+
+The `pynwb.ogen` module contains two key data types:
+- `OptogeneticStimulusSite`: Contains metadata about the stimulus site
+- `OptogeneticSeries`: Contains the power applied by the laser over time (in watts)
+
+### 1. Create a Device
 
 ```python
 device = nwbfile.create_device(
@@ -32,8 +39,9 @@ device = nwbfile.create_device(
 )
 ```
 
-Create an `OptogeneticStimulusSite`. This can be done using `nwbfile.create_ogen_site`:
+### 2. Create an OptogeneticStimulusSite
 
+#### Method 1: Using `create_ogen_site` method
 ```python
 ogen_site = nwbfile.create_ogen_site(
     name="OptogeneticStimulusSite",
@@ -44,8 +52,7 @@ ogen_site = nwbfile.create_ogen_site(
 )
 ```
 
-Alternatively, create an `OptogeneticStimulusSite` object and add it to the `NWBFile` with `nwbfile.add_ogen_site`:
-
+#### Method 2: Direct creation
 ```python
 from pynwb.ogen import OptogeneticStimulusSite
 
@@ -60,11 +67,12 @@ ogen_stim_site = OptogeneticStimulusSite(
 nwbfile.add_ogen_site(ogen_stim_site)
 ```
 
-Create an `OptogeneticSeries` and add it as a stimulus:
+The second approach is necessary when using an extension of `OptogeneticStimulusSite`.
+
+### 3. Create an OptogeneticSeries
 
 ```python
 import numpy as np
-
 from pynwb.ogen import OptogeneticSeries
 
 ogen_series = OptogeneticSeries(
@@ -77,4 +85,4 @@ ogen_series = OptogeneticSeries(
 nwbfile.add_stimulus(ogen_series)
 ```
 
-If data are sampled at irregular intervals, use the `timestamps` argument instead of `rate`.
+Note: By default, the starting time of the time series is the session start time specified in the NWBFile. For samples at irregular intervals, use the `timestamps` parameter instead of `rate`.

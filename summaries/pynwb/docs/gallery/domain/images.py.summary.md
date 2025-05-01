@@ -1,110 +1,170 @@
-This document describes how to store image data in NWB files using the `pynwb.image` module.
+# Storing Image Data in NWB
 
-**Key Classes:**
+This document explains how to use the `pynwb.image` module to add different types of images to an NWBFile.
 
-*   **OpticalSeries:** For time series of images presented as stimuli. Add to NWBFile using `nwbfile.add_stimulus()`. Requires `name`, `distance`, `field_of_view`, and `orientation`.
-    ```python
-    optical_series = OpticalSeries(
-        name="StimulusPresentation",
-        distance=0.7,
-        field_of_view=[0.2, 0.3, 0.7],
-        orientation="lower left",
-        data=image_data,
-        unit="n.a.",
-        format="raw",
-        starting_frame=[0.0],
-        rate=1.0,
-        comments="no comments",
-        description="The images presented to the subject as stimuli"
-    )
-    nwbfile.add_stimulus(optical_series)
-    ```
+## Image Types and Containers
 
-*   **AbstractFeatureSeries:** For storing features of visual stimuli (e.g., luminance, contrast). Add to NWBFile using `nwbfile.add_stimulus()`.
-    ```python
-    abstract_feature_series = AbstractFeatureSeries(
-        name="StimulusFeatures",
-        data=feature_data,
-        timestamps=np.linspace(0, 1, 200),
-        description="Features of the visual stimuli",
-        features=["luminance", "contrast", "spatial frequency"],
-        feature_units=["n.a.", "n.a.", "cycles/degree"]
-    )
-    nwbfile.add_stimulus(abstract_feature_series)
-    ```
+- **OpticalSeries**: For time series of images presented as stimuli
+- **ImageSeries**: For general time series of images (acquired during experiments)
+- **GrayscaleImage**: For static grayscale images
+- **RGBImage**: For static color images
+- **RGBAImage**: For static color images with transparency
+- **AbstractFeatureSeries**: For storing features of visual stimuli
 
-*   **ImageSeries:** For general time series of images acquired during the experiment. Add to NWBFile using `nwbfile.add_acquisition()`.
-    ```python
-    behavior_images = ImageSeries(
-        name="ImageSeries",
-        data=image_data,
-        description="Image data of an animal moving in environment.",
-        unit="n.a.",
-        format="raw",
-        rate=1.0,
-        starting_time=0.0,
-    )
-    nwbfile.add_acquisition(behavior_images)
-    ```
+## Usage Examples
 
-    *   **External Files:** Can store links to external image or video files using the `external_file` attribute. Use `starting_frame` to indicate the frame each file contains. The file path must be relative to the NWB file. Either `external_file` or `data` must be specified, but not both. Timestamps can be set using the `timestamps` property for variable sampling rates.
-        ```python
-        behavior_external_file = ImageSeries(
-            name="ExternalFiles",
-            description="Behavior video of animal moving in environment.",
-            unit="n.a.",
-            external_file=external_file,
-            format="external",
-            starting_frame=[0, 2, 4],
-            timestamps=timestamps,
-        )
-        nwbfile.add_acquisition(behavior_external_file)
-        ```
-
-*   **GrayscaleImage, RGBImage, RGBAImage:** For static images.  Specify `description` and `resolution` (pixels/cm).
-    ```python
-    rgba_logo = RGBAImage(
-        name="pynwb_RGBA_logo",
-        data=np.array(img),
-        resolution=70.0,
-        description="RGBA version of the PyNWB logo."
-    )
-    ```
-
-*   **Images:** A container for static images (GrayscaleImage, RGBImage, RGBAImage).
-
-*   **IndexSeries:** Efficiently store time series of repeated images by referencing unique images in an `Images` container.
-    ```python
-    from pynwb.base import ImageReferences
-    from pynwb.image import GrayscaleImage, Images, IndexSeries, RGBImage
-
-    images = Images(
-        name="raccoons",
-        images=[rgb_logo, gs_logo],
-        description="A collection of raccoons.",
-        order_of_images=ImageReferences("order_of_images", [rgb_logo, gs_logo]),
-    )
-
-    idx_series = IndexSeries(
-        name="stimuli",
-        data=[0, 1, 0, 1],
-        indexed_images=images,
-        unit="N/A",
-        timestamps=[0.1, 0.2, 0.3, 0.4],
-    )
-    ```
-
-**General Usage:**
-
-*   Use `NWBHDF5IO` to write and read NWB files.
-*   Acquired data (e.g., ImageSeries) is added using `nwbfile.add_acquisition()`.
-*   Stimulus data (e.g., OpticalSeries, AbstractFeatureSeries) is added using `nwbfile.add_stimulus()`.
-
-**Reading Data:**
-
+### Basic Setup
 ```python
+from datetime import datetime
+import numpy as np
+from pynwb import NWBHDF5IO, NWBFile
+from pynwb.base import Images
+from pynwb.image import GrayscaleImage, ImageSeries, OpticalSeries, RGBAImage, RGBImage
+from pynwb.misc import AbstractFeatureSeries
+
+# Create NWBFile
+nwbfile = NWBFile(
+    session_description="my first synthetic recording",
+    identifier=str(uuid4()),
+    session_start_time=session_start_time,
+    experimenter=["Baggins, Bilbo"],
+    lab="Bag End Laboratory",
+    institution="University of Middle Earth at the Shire",
+    experiment_description="I went on an adventure to reclaim vast treasures.",
+    session_id="LONELYMTN001",
+)
+```
+
+### Storing Stimulus Images (OpticalSeries)
+```python
+image_data = np.random.randint(low=0, high=255, size=(200, 50, 50, 3), dtype=np.uint8)
+optical_series = OpticalSeries(
+    name="StimulusPresentation",
+    distance=0.7,
+    field_of_view=[0.2, 0.3, 0.7],
+    orientation="lower left",
+    data=image_data,
+    unit="n.a.",
+    format="raw",
+    starting_frame=[0.0],
+    rate=1.0,
+    description="The images presented to the subject as stimuli",
+)
+nwbfile.add_stimulus(stimulus=optical_series)
+```
+
+### Storing Stimulus Features (AbstractFeatureSeries)
+```python
+feature_data = np.random.rand(200, 3)  # 200 time points, 3 features
+abstract_feature_series = AbstractFeatureSeries(
+    name="StimulusFeatures",
+    data=feature_data,
+    timestamps=np.linspace(0, 1, 200),
+    description="Features of the visual stimuli",
+    features=["luminance", "contrast", "spatial frequency"],
+    feature_units=["n.a.", "n.a.", "cycles/degree"],
+)
+nwbfile.add_stimulus(abstract_feature_series)
+```
+
+### Storing Acquired Image Series (ImageSeries)
+```python
+image_data = np.random.randint(low=0, high=255, size=(200, 50, 50, 3), dtype=np.uint8)
+behavior_images = ImageSeries(
+    name="ImageSeries",
+    data=image_data,
+    description="Image data of an animal moving in environment.",
+    unit="n.a.",
+    format="raw",
+    rate=1.0,
+    starting_time=0.0,
+)
+nwbfile.add_acquisition(behavior_images)
+```
+
+### External Image Files
+```python
+external_file = [os.path.relpath(movie_path, nwbfile_path) for movie_path in moviefiles_path]
+timestamps = [0.0, 0.04, 0.07, 0.1, 0.14, 0.16, 0.21]
+behavior_external_file = ImageSeries(
+    name="ExternalFiles",
+    description="Behavior video of animal moving in environment.",
+    unit="n.a.",
+    external_file=external_file,
+    format="external",
+    starting_frame=[0, 2, 4],
+    timestamps=timestamps,
+)
+nwbfile.add_acquisition(behavior_external_file)
+```
+
+### Static Images
+```python
+# RGBA Image
+rgba_logo = RGBAImage(
+    name="pynwb_RGBA_logo",
+    data=np.array(img),  # 3D array with RGBA values
+    resolution=70.0,  # in pixels/cm
+    description="RGBA version of the PyNWB logo.",
+)
+
+# RGB Image
+rgb_logo = RGBImage(
+    name="pynwb_RGB_logo",
+    data=np.array(img.convert("RGB")),  # 3D array with RGB values
+    resolution=70.0,
+    description="RGB version of the PyNWB logo.",
+)
+
+# Grayscale Image
+gs_logo = GrayscaleImage(
+    name="pynwb_Grayscale_logo",
+    data=np.array(img.convert("L")),  # 2D array
+    description="Grayscale version of the PyNWB logo.",
+    resolution=35.433071,
+)
+
+# Group images in an Images container
+images = Images(
+    name="logo_images",
+    images=[rgb_logo, rgba_logo, gs_logo],
+    description="A collection of logo images presented to the subject.",
+)
+nwbfile.add_acquisition(images)
+```
+
+### IndexSeries for Repeated Images
+```python
+from pynwb.base import ImageReferences
+from pynwb.image import IndexSeries
+
+images = Images(
+    name="raccoons",
+    images=[rgb_logo, gs_logo],
+    description="A collection of raccoons.",
+    order_of_images=ImageReferences("order_of_images", [rgb_logo, gs_logo]),
+)
+
+idx_series = IndexSeries(
+    name="stimuli",
+    data=[0, 1, 0, 1],  # Indexes into the Images container
+    indexed_images=images,
+    unit="N/A",
+    timestamps=[0.1, 0.2, 0.3, 0.4],
+)
+```
+
+### Writing and Reading
+```python
+# Writing
+with NWBHDF5IO(nwbfile_path, "w") as io:
+    io.write(nwbfile)
+
+# Reading
 with NWBHDF5IO(nwbfile_path, "r") as io:
     read_nwbfile = io.read()
-    print(read_nwbfile.acquisition["ImageSeries"])
-    print(read_nwbfile.stimulus["StimulusPresentation"].data[:])
+    # Access acquisition data
+    read_nwbfile.acquisition["ImageSeries"]
+    # Access stimulus data
+    read_nwbfile.stimulus["StimulusPresentation"].data[:]
 ```

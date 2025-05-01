@@ -1,14 +1,24 @@
-This document describes how to store extracellular electrophysiology data in NWB files using pynwb.
+# Extracellular Electrophysiology Data in PyNWB
 
-**1. Creating an NWBFile:**
+This document provides a tutorial on storing extracellular electrophysiology data in NWB using PyNWB. The process involves four main steps:
 
-First, create an `NWBFile` object. This requires metadata such as session description, identifier, and session start time.
+1. Creating the electrodes table
+2. Adding acquired raw voltage data
+3. Adding LFP data
+4. Adding spike data
+
+## Creating NWB Files
+
+First, initialize an NWB file:
 
 ```python
 from datetime import datetime
 from uuid import uuid4
+import numpy as np
 from dateutil.tz import tzlocal
 from pynwb import NWBHDF5IO, NWBFile
+from pynwb.ecephys import LFP, ElectricalSeries, SpikeEventSeries
+from pynwb.misc import DecompositionSeries
 
 nwbfile = NWBFile(
     session_description="my first synthetic recording",
@@ -23,9 +33,9 @@ nwbfile = NWBFile(
 )
 ```
 
-**2. Electrodes Table:**
+## Electrodes Table
 
-Extracellular electrode information is stored in the `electrodes` table, a `DynamicTable`.  An `ElectrodeGroup` is required for each electrode. Creating an `ElectrodeGroup` requires a `Device`.
+1. First, define a device:
 
 ```python
 device = nwbfile.create_device(
@@ -36,7 +46,11 @@ device = nwbfile.create_device(
     model_name="Neurovoxels 0.99",
     serial_number="1234567890",
 )
+```
 
+2. Create electrode groups and add electrodes to the table:
+
+```python
 nwbfile.add_electrode_column(name="label", description="label of electrode")
 
 nshanks = 4
@@ -57,41 +71,40 @@ for ishank in range(nshanks):
             location="brain area",
         )
         electrode_counter += 1
-
-nwbfile.electrodes.to_dataframe() # convert to a pandas DataFrame to view it
-
 ```
 
-**3. Extracellular Recordings (ElectricalSeries):**
-
-Raw voltage traces and LFP data are stored as `ElectricalSeries` objects, subclasses of `TimeSeries`. You need to reference rows in the "electrodes" table using a `DynamicTableRegion`.
+3. Create an electrode table region:
 
 ```python
 all_table_region = nwbfile.create_electrode_table_region(
-    region=list(range(electrode_counter)),  # reference row indices 0 to N-1
+    region=list(range(electrode_counter)),
     description="all electrodes",
 )
+```
 
+## Raw Voltage Data
+
+Add raw voltage data using ElectricalSeries:
+
+```python
 raw_data = np.random.randn(50, 12)
 raw_electrical_series = ElectricalSeries(
     name="ElectricalSeries",
     description="Raw acquisition traces",
     data=raw_data,
     electrodes=all_table_region,
-    starting_time=0.0,  # timestamp of the first sample in seconds relative to the session start time
+    starting_time=0.0,
     rate=20000.0,  # in Hz
 )
 
-nwbfile.add_acquisition(raw_electrical_series) #Add raw data to the acquisition group
+nwbfile.add_acquisition(raw_electrical_series)
 ```
 
-**4. LFP Data:**
+## LFP Data
 
-LFP data is also stored as an `ElectricalSeries`, usually placed inside an `LFP` object for organization.
+Add LFP data:
 
 ```python
-from pynwb.ecephys import LFP
-
 lfp_data = np.random.randn(50, 12)
 lfp_electrical_series = ElectricalSeries(
     name="ElectricalSeries",
@@ -108,12 +121,12 @@ lfp = LFP(electrical_series=lfp_electrical_series)
 ecephys_module = nwbfile.create_processing_module(
     name="ecephys", description="processed extracellular electrophysiology data"
 )
-ecephys_module.add(lfp) # Add LFP object to ecephys processing module
+ecephys_module.add(lfp)
 ```
 
-**5. FilteredEphys Data:**
+## Filtered Electrophysiology Data
 
-Data filtered for frequency ranges other than LFP (e.g., Gamma or Theta) should be stored in an `ElectricalSeries` and encapsulated within a `FilteredEphys` object.
+For storing data filtered for specific frequency bands:
 
 ```python
 from pynwb.ecephys import FilteredEphys
@@ -133,17 +146,15 @@ filtered_ephys = FilteredEphys(electrical_series=filtered_electrical_series)
 ecephys_module.add(filtered_ephys)
 ```
 
-**6. DecompositionSeries:**
+## Spectral Decomposition
 
-Further processed LFP data, like spectral decompositions, are stored using `DecompositionSeries`.
+Store results from spectral analyses:
 
 ```python
-from pynwb.misc import DecompositionSeries
-
-bands = dict(theta=(4.0, 12.0),
-             beta=(12.0, 30.0),
-             gamma=(30.0, 80.0))  # in Hz
-phase_data = np.random.randn(50, 12, len(bands))  # 50 samples, 12 channels, 3 frequency bands
+bands = dict(theta=(4.0, 12.0), 
+             beta=(12.0, 30.0), 
+             gamma=(30.0, 80.0))
+phase_data = np.random.randn(50, 12, len(bands))
 
 decomp_series = DecompositionSeries(
     name="theta",
@@ -164,9 +175,9 @@ for band_name, band_limits in bands.items():
 ecephys_module.add(decomp_series)
 ```
 
-**7. Sorted spike times (Units Table):**
+## Sorted Spike Times
 
-Spike times are stored in the `Units` table, a subclass of `DynamicTable`.  Add custom columns for sorting quality using `nwbfile.add_unit_column`. Add spike data with `nwbfile.add_unit`.
+Add columns and units to the Units table:
 
 ```python
 nwbfile.add_unit_column(name="quality", description="sorting quality")
@@ -178,17 +189,13 @@ duration = 20
 for n_units_per_shank in range(n_units):
     spike_times = np.where(np.random.rand((res * duration)) < (firing_rate / res))[0] / res
     nwbfile.add_unit(spike_times=spike_times, quality="good")
-
-nwbfile.units.to_dataframe()  # convert to a DataFrame to inspect
 ```
 
-**8. Unsorted Spike Times:**
+## Unsorted Spike Times
 
-Unsorted spiking activity can be stored using `SpikeEventSeries` objects.
+Store unsorted spike events:
 
 ```python
-from pynwb.ecephys import SpikeEventSeries
-
 spike_snippets = np.random.rand(40, 3, 30)  # 40 events, 3 channels, 30 samples per event
 shank0 = nwbfile.create_electrode_table_region(
     region=[0, 1, 2],
@@ -205,12 +212,10 @@ spike_events = SpikeEventSeries(
 nwbfile.add_acquisition(spike_events)
 ```
 
-**9. EventDetection and FeatureExtraction:**
-
-Use `EventDetection` to identify spike events in raw traces and `FeatureExtraction` to store spike features (e.g., principal components).
+## Event Detection and Feature Extraction
 
 ```python
-from pynwb.ecephys import EventDetection, FeatureExtraction
+from pynwb.ecephys import EventDetection
 
 event_detection = EventDetection(
     name="threshold_events",
@@ -220,6 +225,8 @@ event_detection = EventDetection(
     times=[.033, .066, .099],
 )
 ecephys_module.add(event_detection)
+
+from pynwb.ecephys import FeatureExtraction
 
 feature_extraction = FeatureExtraction(
     name="PCA_features",
@@ -231,34 +238,28 @@ feature_extraction = FeatureExtraction(
 ecephys_module.add(feature_extraction)
 ```
 
-**10. Writing the NWB File:**
+## Writing and Reading Data
 
-Use `NWBHDF5IO` to write the file.
+Write the file:
 
 ```python
-from pynwb import NWBHDF5IO
-
 with NWBHDF5IO("ecephys_tutorial.nwb", "w") as io:
     io.write(nwbfile)
 ```
 
-**11. Reading the NWB File:**
-
-Use `NWBHDF5IO` to read the file.  Access data through `nwbfile.acquisition` and `nwbfile.processing`.
+Read the file:
 
 ```python
 with NWBHDF5IO("ecephys_tutorial.nwb", "r") as io:
     read_nwbfile = io.read()
-    print(read_nwbfile.acquisition["ElectricalSeries"])
-    print(read_nwbfile.processing["ecephys"])
-    print(read_nwbfile.processing["ecephys"]["LFP"])
-    print(read_nwbfile.processing["ecephys"]["LFP"]["ElectricalSeries"])
-
-    print("section of LFP:")
-    print(read_nwbfile.processing["ecephys"]["LFP"]["ElectricalSeries"].data[:10, :3])
-    print("")
-    print("spike times from 0th unit:")
-    print(read_nwbfile.units["spike_times"][0])
+    # Access raw data
+    raw_data = read_nwbfile.acquisition["ElectricalSeries"]
+    # Access LFP data
+    lfp_data = read_nwbfile.processing["ecephys"]["LFP"]["ElectricalSeries"]
+    
+    # Read specific data regions
+    lfp_subset = lfp_data.data[:10, :3]
+    spike_times = read_nwbfile.units["spike_times"][0]
 ```
 
-Data is passively read, calling `.data` on a `TimeSeries` returns an `h5py.Dataset` object. Use indexing (e.g. `[:]`) to read data into memory.
+Note: Data arrays are read passively—the `data` attribute returns an h5py.Dataset object that can be indexed to read specific portions of data.

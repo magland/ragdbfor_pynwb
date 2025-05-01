@@ -1,22 +1,22 @@
-This document provides a tutorial on writing calcium imaging data to NWB files using pynwb. The workflow includes creating an imaging plane, adding acquired two-photon images, adding motion correction (optional), adding image segmentation, and adding fluorescence and dF/F responses.
+# Calcium Imaging Data in pynwb
 
-**Creating the NWB File:**
+This document demonstrates how to use pynwb to work with calcium imaging data. The workflow consists of five main steps:
 
-The first step is creating the `NWBFile` object using the `pynwb.file.NWBFile` class.
+1. Create an imaging plane
+2. Add acquired two-photon images
+3. Add motion correction (optional)
+4. Add image segmentation
+5. Add fluorescence and dF/F responses
 
+## Workflow Steps
+
+### Creating an NWB file
 ```python
-from datetime import datetime
-from uuid import uuid4
-from dateutil.tz import tzlocal
-from pynwb import NWBHDF5IO, NWBFile
-
 nwbfile = NWBFile(
     session_description="my first synthetic recording",
     identifier=str(uuid4()),
     session_start_time=datetime.now(tzlocal()),
-    experimenter=[
-        "Baggins, Bilbo",
-    ],
+    experimenter=["Baggins, Bilbo"],
     lab="Bag End Laboratory",
     institution="University of Middle Earth at the Shire",
     experiment_description="I went on an adventure to reclaim vast treasures.",
@@ -25,13 +25,9 @@ nwbfile = NWBFile(
 )
 ```
 
-**Imaging Plane:**
-
-An `ImagingPlane` object is created to store information about the optical imaging data.  This requires creating a `Device` object for the microscope and an `OpticalChannel` object.
-
+### Imaging Plane Setup
 ```python
-from pynwb.ophys import OpticalChannel
-
+# Create a Device
 device = nwbfile.create_device(
     name="Microscope",
     description="My two-photon microscope",
@@ -40,16 +36,15 @@ device = nwbfile.create_device(
     model_name="Loki 1.0",
     serial_number="1234567890",
 )
+
+# Create an Optical Channel
 optical_channel = OpticalChannel(
     name="OpticalChannel",
     description="an optical channel",
     emission_lambda=500.0,
 )
-```
 
-Then, create an `ImagingPlane` object:
-
-```python
+# Create an Imaging Plane
 imaging_plane = nwbfile.create_imaging_plane(
     name="ImagingPlane",
     optical_channel=optical_channel,
@@ -66,14 +61,8 @@ imaging_plane = nwbfile.create_imaging_plane(
 )
 ```
 
-**One-photon Series:**
-
-A `OnePhotonSeries` object stores raw one-photon imaging data. Add the `OnePhotonSeries` objects to the `NWBFile` as acquired data.
-
+### Adding One-photon Series
 ```python
-from pynwb.ophys import OnePhotonSeries
-import numpy as np
-
 one_p_series = OnePhotonSeries(
     name="OnePhotonSeries",
     description="Raw 1p data",
@@ -82,17 +71,11 @@ one_p_series = OnePhotonSeries(
     rate=1.0,
     unit="normalized amplitude",
 )
-
 nwbfile.add_acquisition(one_p_series)
 ```
 
-**Two-photon Series:**
-
-`TwoPhotonSeries` objects store acquired two-photon imaging data, similar to `OnePhotonSeries`.
-
+### Adding Two-photon Series
 ```python
-from pynwb.ophys import TwoPhotonSeries
-
 two_p_series = TwoPhotonSeries(
     name="TwoPhotonSeries",
     description="Raw 2p data",
@@ -101,21 +84,13 @@ two_p_series = TwoPhotonSeries(
     rate=1.0,
     unit="normalized amplitude",
 )
-
 nwbfile.add_acquisition(two_p_series)
 ```
 
-**Motion Correction (Optional):**
-
-Motion correction results can be stored using a `MotionCorrection` object, which holds `CorrectedImageStack` objects.
-
+### Motion Correction (Optional)
 ```python
-from pynwb import TimeSeries
-from pynwb.image import ImageSeries
-from pynwb.ophys import CorrectedImageStack, MotionCorrection
-
 corrected = ImageSeries(
-    name="corrected",  # this must be named "corrected"
+    name="corrected",  # must be named "corrected"
     description="A motion corrected image stack",
     data=np.ones((1000, 100, 100)),
     unit="na",
@@ -141,22 +116,15 @@ corrected_image_stack = CorrectedImageStack(
 
 motion_correction = MotionCorrection(corrected_image_stacks=[corrected_image_stack])
 
-from pynwb.base import ProcessingModule
-
+# Create a processing module for ophys data
 ophys_module = nwbfile.create_processing_module(
     name="ophys", description="optical physiology processed data"
 )
-
 ophys_module.add(motion_correction)
 ```
 
-**Plane Segmentation:**
-
-The `PlaneSegmentation` class stores detected regions of interest (ROIs). It is a subclass of `DynamicTable`.  The `ImageSegmentation` class can contain multiple `PlaneSegmentation` tables.
-
+### Plane Segmentation (ROI Definition)
 ```python
-from pynwb.ophys import ImageSegmentation
-
 img_seg = ImageSegmentation()
 
 ps = img_seg.create_plane_segmentation(
@@ -169,69 +137,48 @@ ps = img_seg.create_plane_segmentation(
 ophys_module.add(img_seg)
 ```
 
-**Regions Of Interest (ROIs):**
-
-ROIs can be added to the `PlaneSegmentation` table using image masks, pixel masks, or voxel masks.
-
-*   **Image masks:** An array the same size as a single frame, indicating the mask weight of each pixel.
-
+#### Adding ROIs with Image Masks
 ```python
 for _ in range(30):
     image_mask = np.zeros((100, 100))
-
-    # randomly generate example image masks
     x = np.random.randint(0, 95)
     y = np.random.randint(0, 95)
     image_mask[x:x + 5, y:y + 5] = 1
-
-    # add image mask to plane segmentation
     ps.add_roi(image_mask=image_mask)
 ```
 
-*   **Pixel masks:** An array of triplets (x, y, weight) that have a non-zero weight.
-
+#### Adding ROIs with Pixel Masks
 ```python
 ps2 = img_seg.create_plane_segmentation(
     name="PlaneSegmentation2",
     description="output from segmenting my favorite imaging plane",
     imaging_plane=imaging_plane,
-    reference_images=one_p_series,  # optional
+    reference_images=one_p_series,
 )
 
 for _ in range(30):
-    # randomly generate example starting points for region
     x = np.random.randint(0, 95)
     y = np.random.randint(0, 95)
-
-    # define an example 4 x 3 region of pixels of weight '1'
     pixel_mask = []
     for ix in range(x, x + 4):
         for iy in range(y, y + 3):
             pixel_mask.append((ix, iy, 1))
-
-    # add pixel mask to plane segmentation
     ps2.add_roi(pixel_mask=pixel_mask)
 ```
 
-*   **Voxel masks:** An array of quadruplets (x, y, z, weight) that have a non-zero weight.
-
+#### Adding ROIs with Voxel Masks (for volumetric imaging)
 ```python
 ps3 = img_seg.create_plane_segmentation(
     name="PlaneSegmentation3",
     description="output from segmenting my favorite imaging plane",
     imaging_plane=imaging_plane,
-    reference_images=one_p_series,  # optional
+    reference_images=one_p_series,
 )
 
-from itertools import product
-
 for _ in range(30):
-    # randomly generate example starting points for region
     x = np.random.randint(0, 95)
     y = np.random.randint(0, 95)
     z = np.random.randint(0, 15)
-
-    # define an example 4 x 3 x 2 voxel region of weight '0.5'
     voxel_mask = []
     for ix, iy, iz in product(
         range(x, x + 4),
@@ -239,22 +186,17 @@ for _ in range(30):
         range(z, z + 2)
     ):
         voxel_mask.append((ix, iy, iz, 0.5))
-
-    # add voxel mask to plane segmentation
     ps3.add_roi(voxel_mask=voxel_mask)
 ```
 
-**Storing Fluorescence Measurements:**
-
-Fluorescence data is stored using `RoiResponseSeries`. A `DynamicTableRegion` is used to reference ROIs in the `PlaneSegmentation` table.
-
+### Storing Fluorescence Measurements
 ```python
-from pynwb.ophys import Fluorescence, RoiResponseSeries
-
+# Create a table region referencing specific ROIs
 rt_region = ps.create_roi_table_region(
     region=[0, 1], description="the first of two ROIs"
 )
 
+# Create a response series for the fluorescence data
 roi_resp_series = RoiResponseSeries(
     name="RoiResponseSeries",
     description="Fluorescence responses for two ROIs",
@@ -264,37 +206,28 @@ roi_resp_series = RoiResponseSeries(
     rate=30.0,
 )
 
+# Store the response series in a Fluorescence container
 fl = Fluorescence(roi_response_series=roi_resp_series)
 ophys_module.add(fl)
 ```
 
-To store dF/F data instead of fluorescence data, store the `RoiResponseSeries` object in a `DfOverF` object in a similar way.
-
-**Write and Read the File:**
-
+### Writing and Reading the NWB File
 ```python
-from pynwb import NWBHDF5IO
-
+# Write the file
 with NWBHDF5IO("ophys_tutorial.nwb", "w") as io:
     io.write(nwbfile)
 
+# Read the file
 with NWBHDF5IO("ophys_tutorial.nwb", "r") as io:
     read_nwbfile = io.read()
+    
+    # Access data
     print(read_nwbfile.acquisition["TwoPhotonSeries"])
-    print(read_nwbfile.processing["ophys"])
-    print(read_nwbfile.processing["ophys"]["Fluorescence"])
     print(read_nwbfile.processing["ophys"]["Fluorescence"]["RoiResponseSeries"])
+    
+    # Access specific data regions
+    roi_resp_series = read_nwbfile.processing["ophys"]["Fluorescence"]["RoiResponseSeries"]
+    data_slice = roi_resp_series.data[0:10, 0:3]  # Get only a portion of the data
 ```
 
-**Accessing data regions**
-```python
-with NWBHDF5IO("ophys_tutorial.nwb", "r") as io:
-    read_nwbfile = io.read()
-
-    roi_resp_series = read_nwbfile.processing["ophys"]["Fluorescence"][
-        "RoiResponseSeries"
-    ]
-
-    print("section of fluorescence responses:")
-    print(roi_resp_series.data[0:10, 0:3])
-```
+Note: For dF/F data, store RoiResponseSeries in a DfOverF object instead of Fluorescence.

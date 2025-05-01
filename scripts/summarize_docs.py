@@ -2,6 +2,11 @@ import os
 from pathlib import Path
 from run_completion import run_completion
 
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
 def create_summary(file_path: str) -> tuple[int, int]:
     """Create a summary markdown file for the given file."""
     # Read the file content
@@ -35,7 +40,8 @@ def create_summary(file_path: str) -> tuple[int, int]:
     # Get the completion
     response, _, prompt_tokens, completion_tokens = run_completion(
         messages=messages,
-        model='google/gemini-2.0-flash-001'
+        # model='google/gemini-2.0-flash-001'
+        model='anthropic/claude-3.7-sonnet'
     )
 
     print(f"Tokens used - Prompt: {prompt_tokens}, Completion: {completion_tokens}")
@@ -76,7 +82,8 @@ def main():
                     files_processed += 1
                 except Exception as e:
                     print(f"Error processing {file_path}: {e}")
-                    continue
+                    raise
+                    # continue
 
     print("\nSummary:")
     print(f"Files processed: {files_processed}")
